@@ -55,6 +55,7 @@ import { filesAdapter } from '@/components/item-tree/kinds/files';
 import { useTreeServes } from '@/components/item-tree/use-tree-kinds';
 import {
   FILES_ROOT,
+  cascadeOutcome,
   describeDerivedCounts,
   effectiveFolderIndexing,
   fmtRelative,
@@ -62,8 +63,10 @@ import {
   sumDerivedCounts,
   dismissDialog,
   fileFolderHref,
+  refusalMessages,
 } from './files-shared';
 import type {
+  BulkDeleteCascadeResponse,
   BulkDeleteResponse,
   FileRow,
   FolderRow,
@@ -437,6 +440,8 @@ function FilesView({
   // ─── Bulk delete files ───────────────────────────────────────────
   const deleteIds =
     dialog?.kind === 'bulkDelete' && dialog.ids ? dialog.ids : Array.from(selectedFileIds);
+  // A refused file's name, when this folder lists it (never an id).
+  const fileNameOf = (id: string) => files.find((f) => f.id === id)?.filename;
   const confirmBulkDelete = async () => {
     const ids = deleteIds;
     if (ids.length === 0) return;
@@ -457,16 +462,10 @@ function FilesView({
         counts: sumDerivedCounts(needsCascade.map((r) => r.derived)),
       });
     }
-    // Say why a file survived. Without this a guarded file just silently
-    // stayed put — worse, a mixed selection reported only the successes.
-    for (const r of res.refused ?? []) {
-      const names = (r.drawings ?? []).map((d) => d.title).join(', ');
-      toast.error(
-        r.reason === 'in_drawing'
-          ? `Not deleted — used in ${names || 'a drawing'}. Remove it from the drawing first.`
-          : 'Not deleted — this file is an email attachment. Delete it from the email instead.',
-      );
-    }
+    // Say why a file survived, per reason (brain F4). Without this a guarded
+    // file just silently stayed put; a mixed selection reported only the
+    // successes.
+    for (const line of refusalMessages(res.refused ?? [], fileNameOf)) toast.error(line);
     if (res.deleted > 0) {
       toast.success(`Deleted ${res.deleted} file${res.deleted === 1 ? '' : 's'}`);
     }
@@ -477,15 +476,22 @@ function FilesView({
   const confirmCascadeDelete = async () => {
     if (dialog?.kind !== 'cascade') return;
     const { ids } = dialog;
+    let res: BulkDeleteCascadeResponse;
     try {
-      await apiSend('/api/files/files', 'DELETE', { ids, cascade: true });
+      res = await apiSend<BulkDeleteCascadeResponse>('/api/files/files', 'DELETE', {
+        ids,
+        cascade: true,
+      });
     } catch (err) {
       toast.error(err instanceof ApiError ? err.message : 'Delete failed');
       return;
     }
-    toast.success(
-      `Deleted ${ids.length} file${ids.length === 1 ? '' : 's'} and everything derived from them`,
-    );
+    // Never "everything" when the brain kept derived items the login may
+    // not delete, or refused a file (brain F4: keptTotal, refused).
+    const { success, kept } = cascadeOutcome(res, ids.length);
+    if (success) toast.success(success);
+    if (kept) toast.info(kept);
+    for (const line of refusalMessages(res.refused ?? [], fileNameOf)) toast.error(line);
     closeDialog('cascade');
     refresh();
   };
@@ -1545,9 +1551,9 @@ function FilesView({
               {cascade
                 ? `Ingest produced ${describeDerivedCounts(cascade.counts)} from ${
                     cascade.ids.length === 1 ? 'this file' : 'these files'
-                  }. Nothing has been deleted yet — confirming removes the file${
+                  }. Nothing has been deleted yet. Confirming removes the file${
                     cascade.ids.length === 1 ? '' : 's'
-                  } and all of it. This can’t be undone.`
+                  } and what was derived that you can manage; anything you cannot manage is kept. This can’t be undone.`
                 : ''}
             </AlertDialogDescription>
           </AlertDialogHeader>

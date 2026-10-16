@@ -70,16 +70,66 @@ export type DerivedCounts = {
   total: number;
 };
 
+/*
+ * A file delete's answers (brain F4, the bulk delete's contract in mantle's
+ * docs/actors.md). Mirrored here from mantle's
+ * packages/client-types/src/dto/file-deletes.ts, which is not published yet.
+ * TODO(f4): once the mantle release that carries file-deletes.ts is out,
+ * bump the @mantle/client-types pin and import these from it
+ * (FileDeleteRefusalReason, BulkDeleteRefusal, BulkDeleteFilesResponse,
+ * BulkDeleteCascadeResponse, FileCascadeDeleteResponse), then delete the
+ * copies below. Fields new in F4 are optional here: a brain before it does
+ * not send them.
+ */
+
+/** Why one id of a bulk delete was not deleted. `not_found`: no such file,
+ *  or one the login cannot read (the brain never tells the two apart);
+ *  `forbidden`: the login reads it but may not delete it (a Moderator of its
+ *  workspace may); `in_drawing`: a drawing places it; `attachment`: an email
+ *  attachment. */
+export type FileDeleteRefusalReason = 'not_found' | 'forbidden' | 'in_drawing' | 'attachment';
+
+/** One id a bulk delete did not delete, and why (never a silent skip). */
+export type BulkDeleteRefusal = {
+  fileId: string;
+  reason: FileDeleteRefusalReason;
+  /** On `in_drawing`: the drawings placing it that the login reads. */
+  drawings?: Array<{ id: string; title: string }>;
+  /** On `in_drawing`: how many more place it that the login cannot read. */
+  hiddenDrawings?: number;
+};
+
+/** DELETE /api/files/files `{ ids }`. */
 export type BulkDeleteResponse = {
   deleted: number;
+  /** Files not deleted because ingest derived items from them: confirm,
+   *  then send these ids again with `cascade: true`. */
   hasDerived?: Array<{ fileId: string; derived: DerivedCounts }>;
-  /** Refusals the user cannot resolve by confirming — surfaced so a blocked
+  /** Refusals the user cannot resolve by confirming: surfaced so a blocked
    *  delete is never a silent no-op. */
-  refused?: Array<{
-    fileId: string;
-    reason: 'attachment' | 'in_drawing';
-    drawings?: Array<{ id: string; title: string }>;
-  }>;
+  refused?: BulkDeleteRefusal[];
+};
+
+/** DELETE /api/files/files `{ ids, cascade: true }`. */
+export type BulkDeleteCascadeResponse = {
+  deleted: number;
+  hasDerived?: [];
+  /** Derived items deleted, over every file. */
+  reapedTotal?: number;
+  /** Derived items kept because the login may not delete them (F4). */
+  keptTotal?: number;
+  /** F4: a cascade also says which ids it did not delete. */
+  refused?: BulkDeleteRefusal[];
+};
+
+/** DELETE /api/files/files/:id?cascade=1 (not called by this screen yet;
+ *  mirrored with the rest of the contract). */
+export type FileCascadeDeleteResponse = {
+  ok: true;
+  reaped: DerivedCounts;
+  skipped: number;
+  /** Derived items kept because the login may not delete them (F4). */
+  kept?: number;
 };
 
 /** What the rename dialog is acting on — a file (stem, extension preserved) or
@@ -113,6 +163,140 @@ export function describeDerivedCounts(c: DerivedCounts): string {
   if (parts.length === 0) return 'nothing';
   if (parts.length === 1) return parts[0]!;
   return `${parts.slice(0, -1).join(', ')} and ${parts[parts.length - 1]!}`;
+}
+
+// ── What a delete says (brain F4) ─────────────────────────────────────────
+
+const count = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
+
+/** "a", "a and b", "a, b and c". */
+function andList(items: readonly string[]): string {
+  if (items.length <= 1) return items[0] ?? '';
+  return `${items.slice(0, -1).join(', ')} and ${items[items.length - 1]!}`;
+}
+
+/** The order the refusals are said in: what the user can act on first. */
+const REFUSAL_ORDER: readonly FileDeleteRefusalReason[] = [
+  'in_drawing',
+  'attachment',
+  'forbidden',
+  'not_found',
+];
+
+/** Where the files of an `in_drawing` refusal are placed: the drawings the
+ *  login reads by title, the others as a count (one file) or as "drawings
+ *  you cannot open" (several: their counts may overlap). */
+function drawingsText(group: readonly BulkDeleteRefusal[]): {
+  where: string;
+  visible: number;
+  hidden: boolean;
+} {
+  const titles = new Map<string, string>();
+  for (const r of group) {
+    for (const d of r.drawings ?? []) titles.set(d.id, `"${d.title.trim() || 'Untitled drawing'}"`);
+  }
+  const hiddenCounts = group.map((r) => r.hiddenDrawings ?? 0);
+  const hidden = hiddenCounts.some((n) => n > 0);
+  const parts = [...titles.values()];
+  if (hidden) {
+    parts.push(
+      group.length === 1
+        ? `${count(hiddenCounts[0]!, 'drawing', 'drawings')} you cannot open`
+        : 'drawings you cannot open',
+    );
+  }
+  return { where: parts.length ? andList(parts) : 'a drawing', visible: titles.size, hidden };
+}
+
+/** What to do about an `in_drawing` refusal. */
+function inDrawingAdvice(visible: number, hidden: boolean, it: string): string {
+  if (!hidden) return `Remove ${it} from ${visible > 1 ? 'those drawings' : 'the drawing'} first.`;
+  const ask = `ask someone who can open the other drawings to remove ${it} there`;
+  return visible > 0
+    ? `Remove ${it} from the drawings you can open, and ${ask}.`
+    : `${ask.charAt(0).toUpperCase()}${ask.slice(1)}.`;
+}
+
+/**
+ * Why files of a bulk delete were not deleted, one plain line per reason
+ * (brain F4: `not_found`, `forbidden`, `in_drawing`, `attachment`). `nameOf`
+ * names a file the screen lists; an id is never shown, nor anything of a
+ * drawing the login cannot open but how many there are.
+ */
+export function refusalMessages(
+  refused: readonly BulkDeleteRefusal[],
+  nameOf: (fileId: string) => string | undefined = () => undefined,
+): string[] {
+  const out: string[] = [];
+  for (const reason of REFUSAL_ORDER) {
+    const group = refused.filter((r) => r.reason === reason);
+    if (group.length === 0) continue;
+    const one = group.length === 1;
+    const name = one ? nameOf(group[0]!.fileId) : undefined;
+    const subject = one
+      ? name
+        ? `"${name}" was not deleted`
+        : 'One file was not deleted'
+      : `${group.length} files were not deleted`;
+    const it = one ? 'it' : 'them';
+    switch (reason) {
+      case 'in_drawing': {
+        const { where, visible, hidden } = drawingsText(group);
+        out.push(
+          `${subject}: ${one ? 'it is' : 'they are'} used in ${where}. ${inDrawingAdvice(visible, hidden, it)}`,
+        );
+        break;
+      }
+      case 'attachment':
+        out.push(
+          `${subject}: ${one ? 'it is an email attachment' : 'they are email attachments'}. Delete ${it} from the email instead.`,
+        );
+        break;
+      case 'forbidden':
+        out.push(
+          `${subject}: you can open ${it} but not delete ${it}. A Moderator of ${
+            one ? 'its' : 'their'
+          } workspace can.`,
+        );
+        break;
+      case 'not_found':
+        out.push(
+          `${subject}: ${one ? 'it was' : 'they were'} not found. ${
+            one ? 'It may' : 'They may'
+          } already be deleted, or you no longer have access.`,
+        );
+        break;
+    }
+  }
+  return out;
+}
+
+/** What a confirmed cascade says: the success line (null when nothing was
+ *  deleted) and, when the brain kept derived items the login may not
+ *  delete, how many (brain F4 `keptTotal`). Never "everything" when
+ *  anything was kept. `asked`: the ids sent, for a brain that sends no
+ *  `deleted`. */
+export function cascadeOutcome(
+  res: Pick<BulkDeleteCascadeResponse, 'deleted' | 'keptTotal'>,
+  asked: number,
+): { success: string | null; kept: string | null } {
+  const deleted = typeof res.deleted === 'number' ? res.deleted : asked;
+  const kept = res.keptTotal ?? 0;
+  const files = count(deleted, 'file', 'files');
+  return {
+    success:
+      deleted === 0
+        ? null
+        : kept > 0
+          ? `Deleted ${files} and what was derived from ${deleted === 1 ? 'it' : 'them'} that you can manage`
+          : `Deleted ${files} and everything derived from ${deleted === 1 ? 'it' : 'them'}`,
+    kept:
+      kept > 0
+        ? `${count(kept, 'derived item was', 'derived items were')} kept because you cannot manage ${
+            kept === 1 ? 'it' : 'them'
+          }.`
+        : null,
+  };
 }
 
 /** Normalize a free-typed folder name into a slug (lowercase, dashes). */

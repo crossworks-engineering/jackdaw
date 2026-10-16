@@ -2,7 +2,9 @@ import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import {
+  cascadeOutcome,
   describeDerivedCounts,
+  refusalMessages,
   dismissDialog,
   fileFolderHref,
   slugify,
@@ -145,5 +147,123 @@ describe('fileFolderHref (a /n link to a file, W6b fix round)', () => {
     expect(fileFolderHref(new URLSearchParams('file=f1'), null)).toBeNull();
     expect(fileFolderHref(new URLSearchParams('file=f1'), '')).toBeNull();
     expect(fileFolderHref(new URLSearchParams(''), 'files/reports')).toBeNull();
+  });
+});
+
+// Brain F4: a bulk delete's refusals, one plain line per reason, and a
+// cascade that never claims "everything" when items were kept.
+describe('refusalMessages', () => {
+  const names: Record<string, string> = { f1: 'plan.pdf', f2: 'notes.md' };
+  const nameOf = (id: string) => names[id];
+
+  it('says each reason in its own words', () => {
+    expect(refusalMessages([{ fileId: 'f1', reason: 'not_found' }], nameOf)).toEqual([
+      '"plan.pdf" was not deleted: it was not found. It may already be deleted, or you no longer have access.',
+    ]);
+    expect(refusalMessages([{ fileId: 'f1', reason: 'forbidden' }], nameOf)).toEqual([
+      '"plan.pdf" was not deleted: you can open it but not delete it. A Moderator of its workspace can.',
+    ]);
+    expect(refusalMessages([{ fileId: 'f1', reason: 'attachment' }], nameOf)).toEqual([
+      '"plan.pdf" was not deleted: it is an email attachment. Delete it from the email instead.',
+    ]);
+    expect(
+      refusalMessages(
+        [{ fileId: 'f1', reason: 'in_drawing', drawings: [{ id: 'd1', title: 'Site plan' }] }],
+        nameOf,
+      ),
+    ).toEqual([
+      '"plan.pdf" was not deleted: it is used in "Site plan". Remove it from the drawing first.',
+    ]);
+  });
+
+  it('only an attachment is called an attachment (the old toast said so of every refusal)', () => {
+    const lines = refusalMessages([
+      { fileId: 'a', reason: 'not_found' },
+      { fileId: 'b', reason: 'forbidden' },
+    ]);
+    expect(lines.join(' ')).not.toContain('attachment');
+  });
+
+  it('counts the drawings the login cannot open, never names them', () => {
+    expect(
+      refusalMessages(
+        [
+          {
+            fileId: 'f1',
+            reason: 'in_drawing',
+            drawings: [{ id: 'd1', title: 'Site plan' }],
+            hiddenDrawings: 2,
+          },
+        ],
+        nameOf,
+      ),
+    ).toEqual([
+      '"plan.pdf" was not deleted: it is used in "Site plan" and 2 drawings you cannot open. Remove it from the drawings you can open, and ask someone who can open the other drawings to remove it there.',
+    ]);
+    expect(refusalMessages([{ fileId: 'f1', reason: 'in_drawing', hiddenDrawings: 1 }])).toEqual([
+      'One file was not deleted: it is used in 1 drawing you cannot open. Ask someone who can open the other drawings to remove it there.',
+    ]);
+  });
+
+  it('groups several files per reason, and never shows an id', () => {
+    const lines = refusalMessages(
+      [
+        { fileId: 'secret-id-1', reason: 'not_found' },
+        { fileId: 'secret-id-2', reason: 'not_found' },
+        { fileId: 'f1', reason: 'forbidden' },
+        { fileId: 'f2', reason: 'forbidden' },
+        { fileId: 'f1', reason: 'in_drawing', drawings: [{ id: 'd1', title: 'A' }] },
+        { fileId: 'f2', reason: 'in_drawing', drawings: [{ id: 'd2', title: 'B' }] },
+      ],
+      nameOf,
+    );
+    expect(lines).toEqual([
+      '2 files were not deleted: they are used in "A" and "B". Remove them from those drawings first.',
+      '2 files were not deleted: you can open them but not delete them. A Moderator of their workspace can.',
+      '2 files were not deleted: they were not found. They may already be deleted, or you no longer have access.',
+    ]);
+    expect(lines.join(' ')).not.toContain('secret-id');
+  });
+
+  it('nothing refused, nothing said; no em or en dashes in any line', () => {
+    expect(refusalMessages([])).toEqual([]);
+    const all = refusalMessages([
+      { fileId: 'a', reason: 'not_found' },
+      { fileId: 'b', reason: 'forbidden' },
+      { fileId: 'c', reason: 'attachment' },
+      { fileId: 'd', reason: 'in_drawing', hiddenDrawings: 3 },
+    ]);
+    expect(all).toHaveLength(4);
+    for (const line of all) expect(line).not.toMatch(/[\u2013\u2014]/);
+  });
+});
+
+describe('cascadeOutcome', () => {
+  it('everything derived, when nothing was kept', () => {
+    expect(cascadeOutcome({ deleted: 2, keptTotal: 0 }, 2)).toEqual({
+      success: 'Deleted 2 files and everything derived from them',
+      kept: null,
+    });
+  });
+
+  it('says what was kept, and does not claim everything', () => {
+    const out = cascadeOutcome({ deleted: 1, keptTotal: 3 }, 1);
+    expect(out.success).toBe('Deleted 1 file and what was derived from it that you can manage');
+    expect(out.success).not.toContain('everything');
+    expect(out.kept).toBe('3 derived items were kept because you cannot manage them.');
+    expect(cascadeOutcome({ deleted: 1, keptTotal: 1 }, 1).kept).toBe(
+      '1 derived item was kept because you cannot manage it.',
+    );
+  });
+
+  it('no success line when nothing was deleted (all refused)', () => {
+    expect(cascadeOutcome({ deleted: 0, keptTotal: 0 }, 2).success).toBeNull();
+  });
+
+  it('a brain before F4 (no keptTotal) reads as nothing kept', () => {
+    expect(cascadeOutcome({ deleted: 1 }, 1)).toEqual({
+      success: 'Deleted 1 file and everything derived from it',
+      kept: null,
+    });
   });
 });
