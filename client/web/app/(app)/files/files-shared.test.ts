@@ -1,10 +1,14 @@
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
+import { ApiError } from '@mantle/web-ui/api-fetch';
 import {
   cascadeOutcome,
   describeDerivedCounts,
   refusalMessages,
+  folderIndexingDoneText,
+  folderIndexingErrorText,
+  FOLDER_INDEXING_MANAGE_TEXT,
   dismissDialog,
   fileFolderHref,
   slugify,
@@ -156,6 +160,21 @@ describe('refusalMessages', () => {
   const names: Record<string, string> = { f1: 'plan.pdf', f2: 'notes.md' };
   const nameOf = (id: string) => names[id];
 
+  it('says a reason it does not know without a why, never skipping it (F4 audit L4)', () => {
+    const unknown = (fileId: string) =>
+      ({ fileId, reason: 'locked' }) as unknown as Parameters<typeof refusalMessages>[0][number];
+    expect(refusalMessages([unknown('f1'), unknown('f2'), unknown('f3')], nameOf)).toEqual([
+      '3 files were not deleted.',
+    ]);
+    expect(refusalMessages([unknown('f1')], nameOf)).toEqual(['"plan.pdf" was not deleted.']);
+    expect(refusalMessages([{ fileId: 'f2', reason: 'forbidden' }, unknown('f9')], nameOf)).toEqual(
+      [
+        '"notes.md" was not deleted: you can open it but not delete it. A Moderator of its workspace can.',
+        'One file was not deleted.',
+      ],
+    );
+  });
+
   it('says each reason in its own words', () => {
     expect(refusalMessages([{ fileId: 'f1', reason: 'not_found' }], nameOf)).toEqual([
       '"plan.pdf" was not deleted: it was not found. It may already be deleted, or you no longer have access.',
@@ -265,5 +284,43 @@ describe('cascadeOutcome', () => {
       success: 'Deleted 1 file and everything derived from it',
       kept: null,
     });
+  });
+});
+
+describe('folder indexing texts (F4 audit L7)', () => {
+  it("says the brain's workspace refusal in plain words", () => {
+    const e = new ApiError('You cannot change this item in your workspaces.', 403, {
+      error: 'forbidden',
+      reason: 'item-workspace',
+      message: 'You cannot change this item in your workspaces.',
+    });
+    expect(folderIndexingErrorText(e)).toBe(FOLDER_INDEXING_MANAGE_TEXT);
+  });
+
+  it("keeps the brain's words for anything else, else a fallback", () => {
+    expect(folderIndexingErrorText(new ApiError('Folder not found', 404))).toBe('Folder not found');
+    expect(folderIndexingErrorText(new ApiError('Not allowed here.', 403))).toBe(
+      'Not allowed here.',
+    );
+    expect(folderIndexingErrorText('boom')).toBe('Could not change indexing.');
+  });
+
+  it('says what changed, with no em or en dashes', () => {
+    const texts = [
+      folderIndexingDoneText('metadata', 0),
+      folderIndexingDoneText('metadata', 3),
+      folderIndexingDoneText('full', 0),
+      folderIndexingDoneText('full', 1),
+      folderIndexingDoneText('full', 4),
+      folderIndexingDoneText('inherit', 0),
+      FOLDER_INDEXING_MANAGE_TEXT,
+    ];
+    for (const t of texts) expect(t).not.toMatch(/[\u2013\u2014]/);
+    expect(folderIndexingDoneText('full', 1)).toBe(
+      'Content indexing on: 1 file queued for extraction.',
+    );
+    expect(folderIndexingDoneText('metadata', 3)).toBe(
+      'Content indexing off. Files stay findable by name, type and tags (3 re-indexing).',
+    );
   });
 });

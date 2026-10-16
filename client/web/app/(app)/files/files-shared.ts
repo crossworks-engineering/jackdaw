@@ -7,6 +7,7 @@
 
 import { formatDate } from '@mantle/web-ui/lib/format-datetime';
 import type { HitWorkspaceField } from '@mantle/client-types';
+import { isItemWorkspaceRefusal } from '@/lib/item-access';
 
 export const FILES_ROOT = 'files';
 
@@ -228,8 +229,16 @@ export function refusalMessages(
   nameOf: (fileId: string) => string | undefined = () => undefined,
 ): string[] {
   const out: string[] = [];
-  for (const reason of REFUSAL_ORDER) {
-    const group = refused.filter((r) => r.reason === reason);
+  // A reason this client does not know (a newer brain) is said last, as
+  // one group with no why (F4 audit L4): never a silent skip.
+  const groups: Array<[FileDeleteRefusalReason | null, BulkDeleteRefusal[]]> = [
+    ...REFUSAL_ORDER.map((reason): [FileDeleteRefusalReason, BulkDeleteRefusal[]] => [
+      reason,
+      refused.filter((r) => r.reason === reason),
+    ]),
+    [null, refused.filter((r) => !REFUSAL_ORDER.includes(r.reason))],
+  ];
+  for (const [reason, group] of groups) {
     if (group.length === 0) continue;
     const one = group.length === 1;
     const name = one ? nameOf(group[0]!.fileId) : undefined;
@@ -266,6 +275,8 @@ export function refusalMessages(
           } already be deleted, or you no longer have access.`,
         );
         break;
+      default:
+        out.push(`${subject}.`);
     }
   }
   return out;
@@ -423,4 +434,37 @@ export function fileFolderHref(
   const next = new URLSearchParams(params.toString());
   next.set('path', parentPath);
   return `/files?${next.toString()}`;
+}
+
+/** What a folder's indexing change says when it worked: `requeued` is how
+ *  many files the brain queued again (otherwise invisible until the
+ *  extractor gets there). */
+export function folderIndexingDoneText(
+  mode: 'full' | 'metadata' | 'inherit',
+  requeued: number,
+): string {
+  if (mode === 'metadata') {
+    return `Content indexing off. Files stay findable by name, type and tags${
+      requeued ? ` (${requeued} re-indexing)` : ''
+    }.`;
+  }
+  if (mode === 'full') {
+    return `Content indexing on${
+      requeued ? `: ${requeued} ${requeued === 1 ? 'file' : 'files'} queued for extraction` : ''
+    }.`;
+  }
+  return 'This folder now follows its parent for indexing.';
+}
+
+/** Why an existing folder's indexing switch was refused: the brain asks
+ *  for the folder's manage right (a Moderator of its workspace) and
+ *  answers 403 item-workspace (F4 audit L7). */
+export const FOLDER_INDEXING_MANAGE_TEXT =
+  "Only a Moderator of this folder's workspace can change its indexing.";
+
+/** What a failed indexing change says: the workspace refusal in plain
+ *  words, else the brain's own, else a fallback. */
+export function folderIndexingErrorText(err: unknown): string {
+  if (isItemWorkspaceRefusal(err)) return FOLDER_INDEXING_MANAGE_TEXT;
+  return err instanceof Error && err.message ? err.message : 'Could not change indexing.';
 }

@@ -64,6 +64,8 @@ import {
   dismissDialog,
   fileFolderHref,
   refusalMessages,
+  folderIndexingDoneText,
+  folderIndexingErrorText,
 } from './files-shared';
 import type {
   BulkDeleteCascadeResponse,
@@ -522,17 +524,10 @@ function FilesView({
         'PATCH',
         { indexing: mode },
       );
-      const n = res.requeued ?? 0;
-      toast.success(
-        mode === 'metadata'
-          ? `Content indexing off — files stay findable by name/type/tags${n ? ` (${n} re-indexing)` : ''}`
-          : mode === 'full'
-            ? `Content indexing on${n ? ` — ${n} file(s) queued for extraction` : ''}`
-            : 'Folder now follows its parent for indexing',
-      );
+      toast.success(folderIndexingDoneText(mode, res.requeued ?? 0));
       refresh();
     } catch (err) {
-      toast.error(err instanceof ApiError ? err.message : 'Could not change indexing');
+      toast.error(folderIndexingErrorText(err));
     }
   };
 
@@ -1553,7 +1548,9 @@ function FilesView({
                     cascade.ids.length === 1 ? 'this file' : 'these files'
                   }. Nothing has been deleted yet. Confirming removes the file${
                     cascade.ids.length === 1 ? '' : 's'
-                  } and what was derived that you can manage; anything you cannot manage is kept. This can’t be undone.`
+                  } and what was derived from ${
+                    cascade.ids.length === 1 ? 'it' : 'them'
+                  }. A derived item you cannot manage, if there is one, is kept. This can’t be undone.`
                 : ''}
             </AlertDialogDescription>
           </AlertDialogHeader>
