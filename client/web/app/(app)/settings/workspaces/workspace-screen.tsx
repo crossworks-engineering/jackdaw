@@ -69,6 +69,9 @@ import {
   userSearchPaged,
   canSetContact,
   canTickModerator,
+  canAddToWorkspace,
+  ADMIN_ADD_AREA_TEXT,
+  addUserErrorText,
   moderatorErrorText,
   moderatorLockedByAdmin,
   MODERATOR_TICK_ADMIN_ONLY_TEXT,
@@ -531,8 +534,14 @@ function UsersSection({
           </ul>
         </div>
       )}
-      {manage ? (
+      {manage && canAddToWorkspace(ws, areas) ? (
         <AddUser detail={detail} min={userSearchMin(areas)} paged={userSearchPaged(areas)} />
+      ) : manage ? (
+        // Admin without the Users area (F4 audit M1): Add is not offered,
+        // and the screen says why.
+        <p className="text-sm text-muted-foreground" data-testid="workspace-add-blocked">
+          {ADMIN_ADD_AREA_TEXT}
+        </p>
       ) : null}
       {removing ? (
         <RemoveUserDialog
@@ -692,6 +701,7 @@ function AddUser({
 
   // On Admin an add is always one with the Moderator tick (task b8eea6cf):
   // said by a ticked, fixed box, and sent so no brain default decides it.
+  // Only a caller with the Users area gets here on Admin (canAddToWorkspace).
   const adminLocked = moderatorLockedByAdmin(detail.workspace);
   const add = async (loginId: string, name: string) => {
     setAdding(loginId);
@@ -700,7 +710,7 @@ function AddUser({
       toast.success(`${name} added`);
       setQ('');
     } catch (err) {
-      toast.error(moderatorErrorText(err));
+      toast.error(addUserErrorText(err, detail.workspace));
     } finally {
       setAdding(null);
     }

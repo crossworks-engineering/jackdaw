@@ -347,6 +347,32 @@ export function moderatorLockedByAdmin(ws: Pick<Workspace, 'isAdmin'>): boolean 
   return ws.isAdmin;
 }
 
+/**
+ * Whether the login may add users to this workspace (F4 audit M1, owner
+ * decision 2026-10-16): an add to the Admin workspace makes the person an
+ * Admin user, so the brain asks for the Users and workspaces area
+ * (canTickModerator) for any add there, and answers 403 admin_only
+ * without it. Other workspaces: open (canManageWorkspace still decides
+ * whether the screen offers Add at all).
+ */
+export function canAddToWorkspace(
+  ws: Pick<Workspace, 'isAdmin'>,
+  areas: readonly string[] | null | undefined,
+): boolean {
+  return !ws.isAdmin || canTickModerator(areas);
+}
+
+/** Why Add a user is off on the Admin workspace. */
+export const ADMIN_ADD_AREA_TEXT =
+  'Only an Admin user with the Users area can add people to the Admin workspace.';
+
+/** What a failed add says: on Admin, the brain's 403 admin_only in plain
+ *  words (ADMIN_ADD_AREA_TEXT); else as moderatorErrorText. */
+export function addUserErrorText(err: unknown, ws: Pick<Workspace, 'isAdmin'>): string {
+  if (ws.isAdmin && workspaceErrorCode(err) === 'admin_only') return ADMIN_ADD_AREA_TEXT;
+  return moderatorErrorText(err);
+}
+
 /** Why the Moderator switch is fixed on the Admin workspace. */
 export const ADMIN_WORKSPACE_MODERATOR_TEXT = 'Admin users always moderate the Admin workspace.';
 

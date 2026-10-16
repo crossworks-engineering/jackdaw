@@ -18,6 +18,9 @@ import {
   ADMIN_WORKSPACE_MODERATOR_TEXT,
   moderatorErrorText,
   moderatorLockedByAdmin,
+  canAddToWorkspace,
+  ADMIN_ADD_AREA_TEXT,
+  addUserErrorText,
   nextUserSearchOffset,
   canManageWorkspace,
   canPickAssistant,
@@ -691,6 +694,31 @@ describe('the Admin workspace Moderator lock', () => {
   it('locks every row on Admin, none elsewhere', () => {
     expect(moderatorLockedByAdmin({ isAdmin: true })).toBe(true);
     expect(moderatorLockedByAdmin({ isAdmin: false })).toBe(false);
+  });
+
+  // F4 audit M1 (owner decision 2026-10-16): an add to Admin makes an
+  // Admin user, so the brain asks for the Users area for any add there.
+  it('offers an add to Admin only with the Users area; elsewhere always', () => {
+    expect(canAddToWorkspace({ isAdmin: true }, ['users'])).toBe(true);
+    expect(canAddToWorkspace({ isAdmin: true }, ['files'])).toBe(false);
+    expect(canAddToWorkspace({ isAdmin: true }, [])).toBe(false);
+    // No areas list: the owner, who holds every area.
+    expect(canAddToWorkspace({ isAdmin: true }, undefined)).toBe(true);
+    expect(canAddToWorkspace({ isAdmin: false }, ['files'])).toBe(true);
+    expect(canAddToWorkspace({ isAdmin: false }, [])).toBe(true);
+  });
+
+  it("says an Admin add's 403 admin_only in plain words, nowhere else", () => {
+    const adminOnly = new ApiError('admin_only', 403, { error: 'admin_only', code: 'admin_only' });
+    expect(addUserErrorText(adminOnly, { isAdmin: true })).toBe(ADMIN_ADD_AREA_TEXT);
+    expect(addUserErrorText(adminOnly, { isAdmin: false })).not.toBe(ADMIN_ADD_AREA_TEXT);
+    const taken = new ApiError('This person is already a user of this workspace.', 409, {
+      code: 'already_user',
+    });
+    expect(addUserErrorText(taken, { isAdmin: true })).toBe(
+      'This person is already a user of this workspace.',
+    );
+    expect(ADMIN_ADD_AREA_TEXT).not.toMatch(/[\u2013\u2014]/);
   });
 
   it("says the 409 admin_workspace in plain words, else the brain's own", () => {
