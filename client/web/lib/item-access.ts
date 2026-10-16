@@ -17,6 +17,7 @@
  *
  * Pure: pinned by item-access.test.ts.
  */
+import { ApiError } from '@mantle/web-ui/api-fetch';
 import type { ItemCaps } from './contract/grants';
 
 export type { ItemCaps };
@@ -71,4 +72,15 @@ export function itemAccess(item: object | null | undefined): ItemAccess {
 export function readOnlyNote(access: Pick<ItemAccess, 'copy' | 'edit'>): string | null {
   if (access.copy) return SNAPSHOT_COPY_NOTE;
   return access.edit ? null : NO_EDIT_NOTE;
+}
+
+/** Whether an error is the brain's workspace refusal of a change: a 403
+ *  whose reason (or code) is `item-workspace`. A read-only copy's refusal
+ *  carries the same reason with `readOnly`, and says its own words, so it
+ *  is not one. Any other 403 is not one either. */
+export function isItemWorkspaceRefusal(err: unknown): boolean {
+  if (!(err instanceof ApiError) || err.status !== 403) return false;
+  const body = err.body ?? {};
+  if (body.readOnly === true) return false;
+  return body.reason === 'item-workspace' || body.code === 'item-workspace';
 }

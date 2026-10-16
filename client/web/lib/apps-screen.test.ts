@@ -11,6 +11,8 @@ import {
   APP_CODE_MANAGE_TEXT,
   APP_DELETE_CONFIRM,
   appCodeErrorText,
+  restoreBlockedReason,
+  restoreErrorText,
   canChangeAppCode,
   APP_DELETED_TOAST,
   APP_WAS_IN_TRASH,
@@ -154,6 +156,36 @@ describe('appCodeErrorText', () => {
     expect(appCodeErrorText(e, 'Commit failed.')).toBe(APP_CODE_MANAGE_TEXT);
   });
 
+  it("maps the brain's real body: reason item-workspace, code forbidden", () => {
+    const e = new ApiError('You cannot change this item in your workspaces.', 403, {
+      error: 'forbidden',
+      reason: 'item-workspace',
+      code: 'forbidden',
+      message: 'You cannot change this item in your workspaces.',
+    });
+    expect(appCodeErrorText(e, 'Commit failed.')).toBe(APP_CODE_MANAGE_TEXT);
+  });
+
+  it("keeps the brain's words for any other 403 (F4 audit L3)", () => {
+    const readOnly = new ApiError('This app is read-only.', 403, {
+      error: 'forbidden',
+      reason: 'read-only',
+      code: 'read_only',
+      message: 'This app is read-only.',
+    });
+    expect(appCodeErrorText(readOnly, 'Could not save.')).toBe('This app is read-only.');
+    const copy = new ApiError('This is a read-only copy of an accepted item.', 403, {
+      error: 'forbidden',
+      reason: 'item-workspace',
+      readOnly: true,
+    });
+    expect(appCodeErrorText(copy, 'Could not save.')).toBe(
+      'This is a read-only copy of an accepted item.',
+    );
+    const plain = new ApiError('Not allowed here.', 403);
+    expect(appCodeErrorText(plain, 'Could not save.')).toBe('Not allowed here.');
+  });
+
   it("keeps the brain's own words for anything else, else the fallback", () => {
     expect(appCodeErrorText(new ApiError('Draft too large', 413), 'Could not save.')).toBe(
       'Draft too large',
@@ -163,5 +195,28 @@ describe('appCodeErrorText', () => {
 
   it('the reason has no em or en dashes', () => {
     expect(APP_CODE_MANAGE_TEXT).not.toMatch(/[\u2013\u2014]/);
+  });
+});
+
+describe('History restores (F4 audit L1)', () => {
+  it('dims the code and full restores without the code right; data stays', () => {
+    expect(restoreBlockedReason('code', false)).toBe(APP_CODE_MANAGE_TEXT);
+    expect(restoreBlockedReason('full', false)).toBe(APP_CODE_MANAGE_TEXT);
+    expect(restoreBlockedReason('data', false)).toBeNull();
+    expect(restoreBlockedReason('code', true)).toBeNull();
+    expect(restoreBlockedReason('full', true)).toBeNull();
+  });
+
+  it("says a code restore's workspace refusal in plain words, a data one in the brain's", () => {
+    const e = new ApiError('You cannot change this item in your workspaces.', 403, {
+      error: 'forbidden',
+      reason: 'item-workspace',
+      message: 'You cannot change this item in your workspaces.',
+    });
+    expect(restoreErrorText(e, 'code')).toBe(APP_CODE_MANAGE_TEXT);
+    expect(restoreErrorText(e, 'full')).toBe(APP_CODE_MANAGE_TEXT);
+    expect(restoreErrorText(e, 'data')).toBe('You cannot change this item in your workspaces.');
+    expect(restoreErrorText('boom', 'code')).toBe('Could not restore.');
+    expect(restoreErrorText('boom', 'data')).toBe('Could not restore.');
   });
 });

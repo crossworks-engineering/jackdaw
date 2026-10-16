@@ -640,6 +640,16 @@ function AppDetailView({ app }: { app: AppDetail }) {
                     </Button>
                   </Why>
                 </div>
+                {codeWhy ? (
+                  // The read-only reason in words, not only a tooltip: a
+                  // keyboard or screen-reader user reads it too (F4 audit L2).
+                  <p
+                    className="border-b border-border px-3 py-1.5 text-xs text-muted-foreground"
+                    data-testid="app-code-read-only"
+                  >
+                    {codeWhy}
+                  </p>
+                ) : null}
                 <CodeEditor
                   path={activePath}
                   readOnly={!codeAccess}
@@ -663,6 +673,7 @@ function AppDetailView({ app }: { app: AppDetail }) {
             appTitle={app.title}
             hasDraft={app.hasDraft}
             dirty={dirty}
+            codeAccess={codeAccess}
             onRestored={(res) => {
               // Code came back (the draft or live): take the server's files.
               // A data-only restore leaves the code alone, unsaved edits

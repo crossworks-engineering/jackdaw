@@ -50,11 +50,13 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@mantle/web-ui/ui/dropdown-menu';
 import { formatDateTime } from '@mantle/web-ui/lib/format-datetime';
 import { formatBytes } from '@/lib/upload-progress';
+import { restoreBlockedReason, restoreErrorText } from '@/lib/apps-screen';
 
 const TRIGGER_LABEL: Record<AppSnapshot['trigger'], string> = {
   publish: 'Published',
@@ -110,10 +112,14 @@ export function AppHistory({
   appTitle,
   hasDraft,
   dirty,
+  codeAccess,
   onRestored,
 }: {
   appId: string;
   appTitle: string;
+  /** The login may change the app's code (canChangeAppCode): off, the code
+   *  and full restores are dimmed with why; a data restore stays. */
+  codeAccess: boolean;
   /** The app has an unpublished draft: a code restore replaces it. */
   hasDraft: boolean;
   /** The editor holds unsaved code edits: a code restore drops them. */
@@ -166,7 +172,7 @@ export function AppHistory({
           'The app got a draft after you opened this (the assistant, or another window). Look at it first, then restore again.',
         );
       } else {
-        toast.error(err instanceof ApiError ? err.message : 'Could not restore.');
+        toast.error(restoreErrorText(err, mode));
       }
     } finally {
       setBusy(false);
@@ -246,6 +252,7 @@ export function AppHistory({
               key={e.id}
               entry={e}
               busy={busy}
+              codeAccess={codeAccess}
               onRestore={(mode) => setRestoring({ entry: e, mode })}
               onDownload={() => void download(e)}
               onDelete={() => setDeleting(e)}
@@ -336,17 +343,20 @@ export function AppHistory({
 function HistoryRow({
   entry: e,
   busy,
+  codeAccess,
   onRestore,
   onDownload,
   onDelete,
 }: {
   entry: AppSnapshot;
   busy: boolean;
+  codeAccess: boolean;
   onRestore: (mode: AppRestoreMode) => void;
   onDownload: () => void;
   onDelete: () => void;
 }) {
   const Icon = e.kind === 'version' ? GitCommitHorizontal : Camera;
+  const codeBlocked = restoreBlockedReason('code', codeAccess);
   const facts = [
     formatDateTime(e.createdAt),
     `by ${ACTOR_LABEL[e.actor] ?? e.actor}`,
@@ -387,7 +397,14 @@ function HistoryRow({
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end">
-          <DropdownMenuItem onSelect={() => onRestore('code')}>
+          {codeBlocked ? (
+            // Why the code restores are dimmed: a disabled item takes no
+            // pointer, so the reason is said in the menu itself.
+            <DropdownMenuLabel className="max-w-64 text-xs font-normal text-muted-foreground">
+              {codeBlocked}
+            </DropdownMenuLabel>
+          ) : null}
+          <DropdownMenuItem disabled={codeBlocked !== null} onSelect={() => onRestore('code')}>
             <RotateCcw />
             Restore code to the draft
           </DropdownMenuItem>
@@ -397,7 +414,10 @@ function HistoryRow({
                 <Database />
                 Restore data
               </DropdownMenuItem>
-              <DropdownMenuItem onSelect={() => onRestore('full')}>
+              <DropdownMenuItem
+                disabled={restoreBlockedReason('full', codeAccess) !== null}
+                onSelect={() => onRestore('full')}
+              >
                 <RotateCcw />
                 Roll back code and data
               </DropdownMenuItem>

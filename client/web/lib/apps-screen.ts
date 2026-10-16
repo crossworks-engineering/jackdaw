@@ -8,9 +8,9 @@
  * the app's own screen at /apps/<id> (Builder, Code, History, Activity and
  * the switches).
  */
-import { apiFetch, ApiError } from '@mantle/web-ui/api-fetch';
-import type { AppDetail } from '@mantle/client-types';
-import { itemAccess } from './item-access';
+import { apiFetch } from '@mantle/web-ui/api-fetch';
+import type { AppDetail, AppRestoreMode } from '@mantle/client-types';
+import { isItemWorkspaceRefusal, itemAccess } from './item-access';
 
 /**
  * One app as its own screen reads it (GET /api/apps/:id), cached at
@@ -117,10 +117,27 @@ export function canChangeAppCode(app: object | null | undefined): boolean {
 export const APP_CODE_MANAGE_TEXT =
   "Only a Moderator of this app's workspace can change its code, preview it or commit it.";
 
-/** What a failed draft save, discard, Preview or Commit says: a 403 in
- *  plain words, else the brain's own, else the fallback. */
+/** What a failed draft save, discard, Preview or Commit says: the
+ *  workspace refusal (403 item-workspace) in plain words, else the brain's
+ *  own (any other 403 included), else the fallback. */
 export function appCodeErrorText(err: unknown, fallback: string): string {
-  if (err instanceof ApiError && err.status === 403) return APP_CODE_MANAGE_TEXT;
+  if (isItemWorkspaceRefusal(err)) return APP_CODE_MANAGE_TEXT;
   if (err instanceof Error && err.message) return err.message;
   return fallback;
+}
+
+/** Why a History restore is off (F4 audit L1): a code or full restore
+ *  writes the draft, so it needs canChangeAppCode; a data restore does not
+ *  touch the code and stays open (the brain decides it). Null when open. */
+export function restoreBlockedReason(mode: AppRestoreMode, codeAccess: boolean): string | null {
+  return mode !== 'data' && !codeAccess ? APP_CODE_MANAGE_TEXT : null;
+}
+
+/** What a failed History restore says: a code or full restore's workspace
+ *  refusal in plain words (appCodeErrorText); a data restore keeps the
+ *  brain's own words, as a Moderator sentence about code would be wrong. */
+export function restoreErrorText(err: unknown, mode: AppRestoreMode): string {
+  const fallback = 'Could not restore.';
+  if (mode !== 'data') return appCodeErrorText(err, fallback);
+  return err instanceof Error && err.message ? err.message : fallback;
 }
