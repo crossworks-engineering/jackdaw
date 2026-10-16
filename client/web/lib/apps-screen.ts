@@ -8,8 +8,9 @@
  * the app's own screen at /apps/<id> (Builder, Code, History, Activity and
  * the switches).
  */
-import { apiFetch } from '@mantle/web-ui/api-fetch';
+import { apiFetch, ApiError } from '@mantle/web-ui/api-fetch';
 import type { AppDetail } from '@mantle/client-types';
+import { itemAccess } from './item-access';
 
 /**
  * One app as its own screen reads it (GET /api/apps/:id), cached at
@@ -98,3 +99,28 @@ export function wasInTrash(app: object): boolean {
 /** The hint under the Access panel: what a workspace grant means for an app. */
 export const APP_SHARE_HINT =
   'Users in a workspace it is shared with can run the app and use its Mantle tools. With Writable on, they also change its data. Every action is audited to that user. An open link can only read the app’s own data.';
+
+/**
+ * Whether the login may change the app's code (brain F4): saving or
+ * discarding the draft, Preview (the build) and Commit (the publish) need
+ * the app's manage right, a Moderator of its workspace, besides edit; the
+ * brain answers 403 to a login that edits but does not manage it. Read from
+ * the caps every app answer carries (`mayEdit`, `mayManage`); a brain that
+ * sends none leaves it on, and its refusal shows as appCodeErrorText.
+ */
+export function canChangeAppCode(app: object | null | undefined): boolean {
+  const access = itemAccess(app);
+  return access.edit && access.manage;
+}
+
+/** Why the code controls are off for a login that cannot change the code. */
+export const APP_CODE_MANAGE_TEXT =
+  "Only a Moderator of this app's workspace can change its code, preview it or commit it.";
+
+/** What a failed draft save, discard, Preview or Commit says: a 403 in
+ *  plain words, else the brain's own, else the fallback. */
+export function appCodeErrorText(err: unknown, fallback: string): string {
+  if (err instanceof ApiError && err.status === 403) return APP_CODE_MANAGE_TEXT;
+  if (err instanceof Error && err.message) return err.message;
+  return fallback;
+}

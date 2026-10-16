@@ -1,10 +1,17 @@
 import { describe, expect, it, vi } from 'vitest';
 
 const apiFetch = vi.fn();
-vi.mock('@mantle/web-ui/api-fetch', () => ({ apiFetch: (...a: unknown[]) => apiFetch(...a) }));
+vi.mock('@mantle/web-ui/api-fetch', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@mantle/web-ui/api-fetch')>()),
+  apiFetch: (...a: unknown[]) => apiFetch(...a),
+}));
+const { ApiError } = await import('@mantle/web-ui/api-fetch');
 
 import {
+  APP_CODE_MANAGE_TEXT,
   APP_DELETE_CONFIRM,
+  appCodeErrorText,
+  canChangeAppCode,
   APP_DELETED_TOAST,
   APP_WAS_IN_TRASH,
   HELD_APP_DELETE_CONFIRM,
@@ -121,5 +128,40 @@ describe('appDetailQuery', () => {
     expect(apiFetch).toHaveBeenCalledWith('/api/apps/a1');
     expect(data).toEqual({ app });
     expect(data.app.id).toBe('a1');
+  });
+});
+
+// Brain F4: the draft, the build and the commit need the app's manage right.
+describe('canChangeAppCode', () => {
+  it('needs both edit and manage', () => {
+    expect(canChangeAppCode({ mayEdit: true, mayManage: true })).toBe(true);
+    expect(canChangeAppCode({ mayEdit: true, mayManage: false })).toBe(false);
+    expect(canChangeAppCode({ mayEdit: false, mayManage: true })).toBe(false);
+  });
+
+  it('a brain that sends no caps leaves it on (the brain still decides)', () => {
+    expect(canChangeAppCode({})).toBe(true);
+    expect(canChangeAppCode(null)).toBe(true);
+  });
+});
+
+describe('appCodeErrorText', () => {
+  it('says a 403 in plain words, never the raw answer', () => {
+    const e = new ApiError('You cannot change this item in your workspaces.', 403, {
+      error: 'You cannot change this item in your workspaces.',
+      code: 'item-workspace',
+    });
+    expect(appCodeErrorText(e, 'Commit failed.')).toBe(APP_CODE_MANAGE_TEXT);
+  });
+
+  it("keeps the brain's own words for anything else, else the fallback", () => {
+    expect(appCodeErrorText(new ApiError('Draft too large', 413), 'Could not save.')).toBe(
+      'Draft too large',
+    );
+    expect(appCodeErrorText('boom', 'Could not save.')).toBe('Could not save.');
+  });
+
+  it('the reason has no em or en dashes', () => {
+    expect(APP_CODE_MANAGE_TEXT).not.toMatch(/[\u2013\u2014]/);
   });
 });

@@ -1,6 +1,14 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useRef, useState, type ComponentProps } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ComponentProps,
+  type ReactNode,
+} from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { ChevronDown, Eye, GitCommitHorizontal, Undo2, Save, WandSparkles } from 'lucide-react';
 import { apiSend, ApiError } from '@mantle/web-ui/api-fetch';
@@ -50,7 +58,13 @@ import { FileTree } from '@mantle/web-ui/app-sandbox/file-tree';
 import { MasterDetail } from '@mantle/web-ui/ui/master-detail';
 import { useSurfaceAssist } from '@/components/assistant/use-surface-assist';
 import type { AppDetail } from '@mantle/client-types';
-import { APP_SHARE_HINT, appDetailQuery } from '@/lib/apps-screen';
+import {
+  APP_CODE_MANAGE_TEXT,
+  APP_SHARE_HINT,
+  appCodeErrorText,
+  appDetailQuery,
+  canChangeAppCode,
+} from '@/lib/apps-screen';
 
 type BuildMsg = { text: string; location: { file: string; line: number; column: number } | null };
 
@@ -131,6 +145,18 @@ export function AppDetailClient({ id }: { id: string }) {
   return <AppDetailView app={appQuery.data.app} />;
 }
 
+/** A control that is off for a reason: the reason as the tooltip of a
+ *  wrapper (a disabled button takes no pointer, so its own title never
+ *  shows). No wrapper when it is on. */
+function Why({ why, children }: { why: string | null; children: ReactNode }) {
+  if (!why) return <>{children}</>;
+  return (
+    <span className="inline-flex" title={why}>
+      {children}
+    </span>
+  );
+}
+
 function AppDetailView({ app }: { app: AppDetail }) {
   const toast = useToast();
   const queryClient = useQueryClient();
@@ -144,6 +170,10 @@ function AppDetailView({ app }: { app: AppDetail }) {
   const icon = face ? face.icon : app.icon;
   const color = face ? face.color : app.color;
 
+  // Saving the draft, Discard, Preview and Commit need the app's manage
+  // right (brain F4): off for a login that only edits it, with why.
+  const codeAccess = canChangeAppCode(app);
+  const codeWhy = codeAccess ? null : APP_CODE_MANAGE_TEXT;
   const source = app.draft ?? app.source;
   const toolSlugs = app.manifest?.toolSlugs ?? [];
   // Editable working copy of the source tree. Re-synced from the server on every
@@ -230,7 +260,7 @@ function AppDetailView({ app }: { app: AppDetail }) {
         toast.error(`${data.errors?.length ?? 0} error(s). The preview was not updated.`);
       }
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Could not build the preview.');
+      toast.error(appCodeErrorText(err, 'Could not build the preview.'));
     } finally {
       setBusy(null);
     }
@@ -255,7 +285,7 @@ function AppDetailView({ app }: { app: AppDetail }) {
         setBuildErrors(errors);
         toast.error(`${errors.length} error(s). Nothing was committed.`);
       } else {
-        toast.error(err instanceof Error ? err.message : 'Commit failed.');
+        toast.error(appCodeErrorText(err, 'Commit failed.'));
       }
     } finally {
       setBusy(null);
@@ -274,8 +304,8 @@ function AppDetailView({ app }: { app: AppDetail }) {
       dirtyRef.current = false;
       await queryClient.invalidateQueries({ queryKey: APPS_KEY });
       setReloadKey((k) => k + 1);
-    } catch {
-      toast.error('Could not discard the draft.');
+    } catch (err) {
+      toast.error(appCodeErrorText(err, 'Could not discard the draft.'));
     } finally {
       setBusy(null);
     }
@@ -317,7 +347,7 @@ function AppDetailView({ app }: { app: AppDetail }) {
         setConflict(true);
         return false;
       }
-      toast.error(err instanceof Error ? err.message : 'Could not save.');
+      toast.error(appCodeErrorText(err, 'Could not save.'));
       return false;
     } finally {
       setBusy(null);
@@ -397,38 +427,48 @@ function AppDetailView({ app }: { app: AppDetail }) {
           subtitle={app.description ?? app.summary}
           textActions={
             <>
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={preview}
-                disabled={busy !== null}
-                title="Compile the draft and refresh the preview. It does not go live."
-              >
-                <Eye />
-                Preview
-              </Button>
-              {app.hasDraft && (
+              <Why why={codeWhy}>
                 <Button
                   size="sm"
-                  variant="ghost"
-                  onClick={() => setConfirmDiscard(true)}
-                  disabled={busy !== null}
+                  variant="outline"
+                  onClick={preview}
+                  disabled={busy !== null || !codeAccess}
+                  title={
+                    codeWhy
+                      ? undefined
+                      : 'Compile the draft and refresh the preview. It does not go live.'
+                  }
                 >
-                  <Undo2 />
-                  {busy === 'discard' ? 'Discarding…' : 'Discard'}
+                  <Eye />
+                  Preview
                 </Button>
+              </Why>
+              {app.hasDraft && (
+                <Why why={codeWhy}>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => setConfirmDiscard(true)}
+                    disabled={busy !== null || !codeAccess}
+                  >
+                    <Undo2 />
+                    {busy === 'discard' ? 'Discarding…' : 'Discard'}
+                  </Button>
+                </Why>
               )}
               {/* Commit compiles the draft itself, so it gates on there being
                   something staged, not on a build having been run by hand. */}
-              <Button
-                size="sm"
-                onClick={commit}
-                disabled={busy !== null || (!app.hasDraft && !dirty)}
-                title="Compile the draft and make it live"
-              >
-                <GitCommitHorizontal />
-                Commit
-              </Button>
+              <Why why={codeWhy}>
+                <Button
+                  size="sm"
+                  onClick={commit}
+                  disabled={busy !== null || !codeAccess || (!app.hasDraft && !dirty)}
+                  title={codeWhy ? undefined : 'Compile the draft and make it live'}
+                >
+                  <GitCommitHorizontal />
+                  Commit
+                </Button>
+              </Why>
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <Button
@@ -570,28 +610,39 @@ function AppDetailView({ app }: { app: AppDetail }) {
                     {activePath}
                     {dirty && <span className="ml-1.5 text-foreground">●</span>}
                   </span>
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    onClick={formatActive}
-                    disabled={busy !== null || !canFormat}
-                    title={canFormat ? 'Format with Prettier' : 'No formatter for this file type'}
-                  >
-                    <WandSparkles />
-                    {busy === 'format' ? 'Formatting…' : 'Format'}
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => void saveDraft()}
-                    disabled={busy !== null || !dirty}
-                  >
-                    <Save />
-                    {busy === 'save' ? 'Saving…' : 'Save'}
-                  </Button>
+                  <Why why={codeWhy}>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      onClick={formatActive}
+                      disabled={busy !== null || !canFormat || !codeAccess}
+                      title={
+                        codeWhy
+                          ? undefined
+                          : canFormat
+                            ? 'Format with Prettier'
+                            : 'No formatter for this file type'
+                      }
+                    >
+                      <WandSparkles />
+                      {busy === 'format' ? 'Formatting…' : 'Format'}
+                    </Button>
+                  </Why>
+                  <Why why={codeWhy}>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => void saveDraft()}
+                      disabled={busy !== null || !dirty || !codeAccess}
+                    >
+                      <Save />
+                      {busy === 'save' ? 'Saving…' : 'Save'}
+                    </Button>
+                  </Why>
                 </div>
                 <CodeEditor
                   path={activePath}
+                  readOnly={!codeAccess}
                   value={activeContent}
                   onChange={(next) => {
                     setFiles((f) => ({ ...f, [activePath]: next }));
