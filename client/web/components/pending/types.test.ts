@@ -165,6 +165,37 @@ describe('mayApprove: Approve is hidden only where the brain refuses it', () => 
     );
     expect(mayApprove({}, { loginId: ASKER, isOwner: false })).toBe(true);
     expect(mayApprove({ elevated, loginId: ASKER }, undefined)).toBe(true);
-    expect(mayApprove({ elevated, loginId: null }, { loginId: ASKER, isOwner: false })).toBe(true);
+    // A brain that predates the summary's asker (no loginId at all).
+    expect(mayApprove({ elevated }, { loginId: ASKER, isOwner: false })).toBe(true);
+  });
+
+  /**
+   * Lows round 2 (mantle lows-approvals 2, L8). Each answer this round
+   * changed, with its answer before:
+   *   an elevated call that names no asker (loginId null), viewer not the
+   *   owner: hidden (before: shown, and the brain refused it);
+   *   on a brain that sends no isOwner, an Admin user viewing an elevated
+   *   call it asked itself: hidden (before: shown, its role read as owner).
+   */
+  it('an elevated call that names no asker: the owner’s alone', () => {
+    expect(mayApprove({ elevated, loginId: null }, { loginId: ASKER, isOwner: false })).toBe(false);
+    expect(
+      mayApprove({ elevated, loginId: null }, { loginId: ASKER, isOwner: true, ownerStated: true }),
+    ).toBe(true);
+  });
+
+  it('an owner read from the role, not said by the brain, is no owner for its own elevated call', () => {
+    const roleOwner = { loginId: ASKER, isOwner: true, ownerStated: false };
+    expect(mayApprove({ elevated, loginId: ASKER }, roleOwner)).toBe(false);
+    expect(mayApprove({ elevated, loginId: null }, roleOwner)).toBe(false);
+    // Another's elevated call: shown, as for any other login.
+    expect(mayApprove({ elevated, loginId: OTHER }, roleOwner)).toBe(true);
+    // The brain said so: the owner may always approve.
+    expect(
+      mayApprove(
+        { elevated, loginId: ASKER },
+        { loginId: ASKER, isOwner: true, ownerStated: true },
+      ),
+    ).toBe(true);
   });
 });

@@ -41,14 +41,22 @@ export type PendingRow = {
 };
 
 /** Whether the viewer may approve `row` as far as the screen can tell: not
- *  an elevated call it asked itself (the brain refuses that, so Approve is
- *  hidden), unless it is the owner, who may always approve. The brain
+ *  an elevated call it asked itself, nor an elevated call that names no
+ *  asker (`loginId` null: the brain leaves that to the owner alone), unless
+ *  it is the owner, who may always approve. The owner only as the brain
+ *  says it (`isOwner` it sent, `ownerStated`): a brain that sends no
+ *  `isOwner` has the screen read it from the role, and an Admin user is no
+ *  owner for an elevated call it asked itself (lows round 2). The brain
  *  decides every approval; this only hides a button it would refuse. */
 export function mayApprove(
   row: Pick<PendingRow, 'elevated' | 'loginId'>,
-  viewer: { loginId: string; isOwner: boolean } | undefined,
+  viewer: { loginId: string; isOwner: boolean; ownerStated?: boolean } | undefined,
 ): boolean {
-  if (!row.elevated || !viewer || viewer.isOwner || !row.loginId) return true;
+  if (!row.elevated || !viewer) return true;
+  if (viewer.isOwner && viewer.ownerStated !== false) return true;
+  // No asker named (null; absent is a brain that predates it): the owner's.
+  if (row.loginId === null) return false;
+  if (!row.loginId) return true;
   return row.loginId.toLowerCase() !== viewer.loginId.toLowerCase();
 }
 
