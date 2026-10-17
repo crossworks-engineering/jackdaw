@@ -11,6 +11,7 @@ import {
   APP_CODE_MANAGE_TEXT,
   APP_DELETE_CONFIRM,
   appCodeErrorText,
+  appCodeWhy,
   restoreBlockedReason,
   restoreErrorText,
   canChangeAppCode,
@@ -24,6 +25,8 @@ import {
   appsLegacyHref,
   appsUrlId,
 } from './apps-screen';
+
+import { SNAPSHOT_COPY_NOTE } from './item-access';
 
 const sp = (s: string) => new URLSearchParams(s);
 
@@ -147,13 +150,39 @@ describe('canChangeAppCode', () => {
   });
 });
 
+describe('appCodeWhy', () => {
+  it('a snapshot copy says it is a copy, never the Moderator sentence', () => {
+    expect(appCodeWhy({ readOnly: true, snapshotOf: 'a0', mayEdit: false, mayManage: true })).toBe(
+      SNAPSHOT_COPY_NOTE,
+    );
+    // Even a Moderator's view of a copy: nobody changes a copy.
+    expect(appCodeWhy({ readOnly: true, mayEdit: true, mayManage: true })).toBe(SNAPSHOT_COPY_NOTE);
+    expect(appCodeWhy({ snapshotOf: 'a0' })).toBe(SNAPSHOT_COPY_NOTE);
+  });
+
+  it('a login that edits but does not manage gets the Moderator sentence', () => {
+    expect(appCodeWhy({ mayEdit: true, mayManage: false })).toBe(APP_CODE_MANAGE_TEXT);
+    expect(appCodeWhy({ mayEdit: false, mayManage: false })).toBe(APP_CODE_MANAGE_TEXT);
+  });
+
+  it('is null when the code controls are on', () => {
+    expect(appCodeWhy({ mayEdit: true, mayManage: true })).toBeNull();
+    expect(appCodeWhy({})).toBeNull();
+    expect(appCodeWhy(null)).toBeNull();
+  });
+});
+
 describe('appCodeErrorText', () => {
-  it('says a 403 in plain words, never the raw answer', () => {
+  it('reads the reason, not the code: a code of item-workspace alone is not the refusal', () => {
+    // The brain's code is the generic `forbidden`; its reason names the
+    // refusal. A body with only the code keeps the brain's words.
     const e = new ApiError('You cannot change this item in your workspaces.', 403, {
       error: 'You cannot change this item in your workspaces.',
       code: 'item-workspace',
     });
-    expect(appCodeErrorText(e, 'Commit failed.')).toBe(APP_CODE_MANAGE_TEXT);
+    expect(appCodeErrorText(e, 'Commit failed.')).toBe(
+      'You cannot change this item in your workspaces.',
+    );
   });
 
   it("maps the brain's real body: reason item-workspace, code forbidden", () => {
@@ -184,6 +213,25 @@ describe('appCodeErrorText', () => {
     );
     const plain = new ApiError('Not allowed here.', 403);
     expect(appCodeErrorText(plain, 'Could not save.')).toBe('Not allowed here.');
+  });
+
+  it("on a snapshot copy says the copy's note for the brain's plain refusal (F4 pair audit)", () => {
+    // The brain answers a copy's change with the plain item-workspace body
+    // and no readOnly (mantle api-v1-builtin.test.ts): on a copy that is
+    // the copy's note, never the Moderator sentence.
+    const e = new ApiError('You cannot change this item in your workspaces.', 403, {
+      error: 'forbidden',
+      reason: 'item-workspace',
+      code: 'forbidden',
+      message: 'You cannot change this item in your workspaces.',
+    });
+    expect(appCodeErrorText(e, 'Commit failed.', { copy: true })).toBe(SNAPSHOT_COPY_NOTE);
+    expect(appCodeErrorText(e, 'Commit failed.', { copy: false })).toBe(APP_CODE_MANAGE_TEXT);
+    // Anything else on a copy keeps the brain's words, else the fallback.
+    expect(
+      appCodeErrorText(new ApiError('Draft too large', 413), 'Could not save.', { copy: true }),
+    ).toBe('Draft too large');
+    expect(appCodeErrorText('boom', 'Could not save.', { copy: true })).toBe('Could not save.');
   });
 
   it("keeps the brain's own words for anything else, else the fallback", () => {

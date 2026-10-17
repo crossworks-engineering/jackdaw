@@ -10,7 +10,12 @@
  */
 import { apiFetch } from '@mantle/web-ui/api-fetch';
 import type { AppDetail, AppRestoreMode } from '@mantle/client-types';
-import { isItemWorkspaceRefusal, itemAccess } from './item-access';
+import {
+  SNAPSHOT_COPY_NOTE,
+  isItemWorkspaceRefusal,
+  itemAccess,
+  readOnlyNote,
+} from './item-access';
 
 /**
  * One app as its own screen reads it (GET /api/apps/:id), cached at
@@ -117,11 +122,27 @@ export function canChangeAppCode(app: object | null | undefined): boolean {
 export const APP_CODE_MANAGE_TEXT =
   "Only a Moderator of this app's workspace can change its code, preview it or commit it.";
 
+/** Why the code controls are off, in the words the Code tab shows: on a
+ *  read-only snapshot copy the copy's note (nobody changes a copy, a
+ *  Moderator included), else the Moderator sentence for a login that
+ *  cannot change the code. Null when they are on. */
+export function appCodeWhy(app: object | null | undefined): string | null {
+  const access = itemAccess(app);
+  if (access.copy) return readOnlyNote(access);
+  return canChangeAppCode(app) ? null : APP_CODE_MANAGE_TEXT;
+}
+
 /** What a failed draft save, discard, Preview or Commit says: the
  *  workspace refusal (403 item-workspace) in plain words, else the brain's
- *  own (any other 403 included), else the fallback. */
-export function appCodeErrorText(err: unknown, fallback: string): string {
-  if (isItemWorkspaceRefusal(err)) return APP_CODE_MANAGE_TEXT;
+ *  own (any other 403 included), else the fallback. On a snapshot copy
+ *  (`copy`) the brain answers the plain workspace refusal with no
+ *  `readOnly`, so the copy's note says it instead of the Moderator one. */
+export function appCodeErrorText(
+  err: unknown,
+  fallback: string,
+  { copy = false }: { copy?: boolean } = {},
+): string {
+  if (isItemWorkspaceRefusal(err)) return copy ? SNAPSHOT_COPY_NOTE : APP_CODE_MANAGE_TEXT;
   if (err instanceof Error && err.message) return err.message;
   return fallback;
 }

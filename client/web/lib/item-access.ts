@@ -75,12 +75,13 @@ export function readOnlyNote(access: Pick<ItemAccess, 'copy' | 'edit'>): string 
 }
 
 /** Whether an error is the brain's workspace refusal of a change: a 403
- *  whose reason (or code) is `item-workspace`. A read-only copy's refusal
- *  carries the same reason with `readOnly`, and says its own words, so it
- *  is not one. Any other 403 is not one either. */
+ *  whose reason is `item-workspace` (its code is the generic `forbidden`).
+ *  A read-only copy's refusal may carry the same reason with `readOnly`,
+ *  and says its own words, so it is not one. Any other 403 is not one
+ *  either. */
 export function isItemWorkspaceRefusal(err: unknown): boolean {
   if (!(err instanceof ApiError) || err.status !== 403) return false;
   const body = err.body ?? {};
   if (body.readOnly === true) return false;
-  return body.reason === 'item-workspace' || body.code === 'item-workspace';
+  return body.reason === 'item-workspace';
 }

@@ -59,12 +59,13 @@ import { MasterDetail } from '@mantle/web-ui/ui/master-detail';
 import { useSurfaceAssist } from '@/components/assistant/use-surface-assist';
 import type { AppDetail } from '@mantle/client-types';
 import {
-  APP_CODE_MANAGE_TEXT,
   APP_SHARE_HINT,
   appCodeErrorText,
+  appCodeWhy,
   appDetailQuery,
   canChangeAppCode,
 } from '@/lib/apps-screen';
+import { itemAccess } from '@/lib/item-access';
 
 type BuildMsg = { text: string; location: { file: string; line: number; column: number } | null };
 
@@ -171,9 +172,11 @@ function AppDetailView({ app }: { app: AppDetail }) {
   const color = face ? face.color : app.color;
 
   // Saving the draft, Discard, Preview and Commit need the app's manage
-  // right (brain F4): off for a login that only edits it, with why.
+  // right (brain F4): off for a login that only edits it, with why. A
+  // read-only snapshot copy says it is a copy: nobody changes one.
   const codeAccess = canChangeAppCode(app);
-  const codeWhy = codeAccess ? null : APP_CODE_MANAGE_TEXT;
+  const codeWhy = appCodeWhy(app);
+  const isCopy = itemAccess(app).copy;
   const source = app.draft ?? app.source;
   const toolSlugs = app.manifest?.toolSlugs ?? [];
   // Editable working copy of the source tree. Re-synced from the server on every
@@ -260,7 +263,7 @@ function AppDetailView({ app }: { app: AppDetail }) {
         toast.error(`${data.errors?.length ?? 0} error(s). The preview was not updated.`);
       }
     } catch (err) {
-      toast.error(appCodeErrorText(err, 'Could not build the preview.'));
+      toast.error(appCodeErrorText(err, 'Could not build the preview.', { copy: isCopy }));
     } finally {
       setBusy(null);
     }
@@ -285,7 +288,7 @@ function AppDetailView({ app }: { app: AppDetail }) {
         setBuildErrors(errors);
         toast.error(`${errors.length} error(s). Nothing was committed.`);
       } else {
-        toast.error(appCodeErrorText(err, 'Commit failed.'));
+        toast.error(appCodeErrorText(err, 'Commit failed.', { copy: isCopy }));
       }
     } finally {
       setBusy(null);
@@ -305,7 +308,7 @@ function AppDetailView({ app }: { app: AppDetail }) {
       await queryClient.invalidateQueries({ queryKey: APPS_KEY });
       setReloadKey((k) => k + 1);
     } catch (err) {
-      toast.error(appCodeErrorText(err, 'Could not discard the draft.'));
+      toast.error(appCodeErrorText(err, 'Could not discard the draft.', { copy: isCopy }));
     } finally {
       setBusy(null);
     }
@@ -347,7 +350,7 @@ function AppDetailView({ app }: { app: AppDetail }) {
         setConflict(true);
         return false;
       }
-      toast.error(appCodeErrorText(err, 'Could not save.'));
+      toast.error(appCodeErrorText(err, 'Could not save.', { copy: isCopy }));
       return false;
     } finally {
       setBusy(null);

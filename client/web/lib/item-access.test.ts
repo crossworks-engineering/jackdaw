@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest';
+import { ApiError } from '@mantle/web-ui/api-fetch';
 import {
   NO_EDIT_NOTE,
   SNAPSHOT_COPY_NOTE,
+  isItemWorkspaceRefusal,
   isReadOnlyItem,
   itemAccess,
   readOnlyNote,
@@ -98,5 +100,46 @@ describe('readOnlyNote', () => {
     expect(readOnlyNote(itemAccess({ mayEdit: false }))).toBe(NO_EDIT_NOTE);
     expect(readOnlyNote(itemAccess({ mayEdit: true }))).toBeNull();
     expect(readOnlyNote(itemAccess({}))).toBeNull();
+  });
+});
+
+describe('isItemWorkspaceRefusal', () => {
+  const MSG = 'You cannot change this item in your workspaces.';
+
+  it("is the brain's 403 whose reason is item-workspace", () => {
+    expect(
+      isItemWorkspaceRefusal(
+        new ApiError(MSG, 403, { error: 'forbidden', reason: 'item-workspace', code: 'forbidden' }),
+      ),
+    ).toBe(true);
+  });
+
+  it('is not a read-only copy refusal, even with the same reason', () => {
+    expect(
+      isItemWorkspaceRefusal(
+        new ApiError(MSG, 403, { error: 'forbidden', reason: 'item-workspace', readOnly: true }),
+      ),
+    ).toBe(false);
+  });
+
+  it('is not another 403 reason, nor a code of item-workspace alone', () => {
+    expect(
+      isItemWorkspaceRefusal(
+        new ApiError('This app is read-only.', 403, { error: 'forbidden', reason: 'read-only' }),
+      ),
+    ).toBe(false);
+    expect(isItemWorkspaceRefusal(new ApiError(MSG, 403, { code: 'item-workspace' }))).toBe(false);
+  });
+
+  it('is not a bare 403', () => {
+    expect(isItemWorkspaceRefusal(new ApiError('Forbidden', 403))).toBe(false);
+  });
+
+  it('is not any other status, nor a non-ApiError', () => {
+    expect(
+      isItemWorkspaceRefusal(new ApiError(MSG, 404, { error: 'x', reason: 'item-workspace' })),
+    ).toBe(false);
+    expect(isItemWorkspaceRefusal(new Error(MSG))).toBe(false);
+    expect(isItemWorkspaceRefusal(null)).toBe(false);
   });
 });
