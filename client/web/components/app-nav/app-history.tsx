@@ -112,14 +112,20 @@ export function AppHistory({
   appTitle,
   hasDraft,
   dirty,
-  codeAccess,
+  codeWhy,
+  copy,
   onRestored,
 }: {
   appId: string;
   appTitle: string;
-  /** The login may change the app's code (canChangeAppCode): off, the code
-   *  and full restores are dimmed with why; a data restore stays. */
-  codeAccess: boolean;
+  /** Why the login may not change the app's code (appCodeWhy), null when it
+   *  may: set, the code and full restores are dimmed with it (the copy's
+   *  note on a snapshot copy, else the Moderator sentence); a data restore
+   *  stays. */
+  codeWhy: string | null;
+  /** The app is a read-only snapshot copy: a refused code or full restore
+   *  says the copy's note, not the Moderator sentence. */
+  copy: boolean;
   /** The app has an unpublished draft: a code restore replaces it. */
   hasDraft: boolean;
   /** The editor holds unsaved code edits: a code restore drops them. */
@@ -172,7 +178,7 @@ export function AppHistory({
           'The app got a draft after you opened this (the assistant, or another window). Look at it first, then restore again.',
         );
       } else {
-        toast.error(restoreErrorText(err, mode));
+        toast.error(restoreErrorText(err, mode, { copy }));
       }
     } finally {
       setBusy(false);
@@ -252,7 +258,7 @@ export function AppHistory({
               key={e.id}
               entry={e}
               busy={busy}
-              codeAccess={codeAccess}
+              codeWhy={codeWhy}
               onRestore={(mode) => setRestoring({ entry: e, mode })}
               onDownload={() => void download(e)}
               onDelete={() => setDeleting(e)}
@@ -343,20 +349,20 @@ export function AppHistory({
 function HistoryRow({
   entry: e,
   busy,
-  codeAccess,
+  codeWhy,
   onRestore,
   onDownload,
   onDelete,
 }: {
   entry: AppSnapshot;
   busy: boolean;
-  codeAccess: boolean;
+  codeWhy: string | null;
   onRestore: (mode: AppRestoreMode) => void;
   onDownload: () => void;
   onDelete: () => void;
 }) {
   const Icon = e.kind === 'version' ? GitCommitHorizontal : Camera;
-  const codeBlocked = restoreBlockedReason('code', codeAccess);
+  const codeBlocked = restoreBlockedReason('code', codeWhy);
   const facts = [
     formatDateTime(e.createdAt),
     `by ${ACTOR_LABEL[e.actor] ?? e.actor}`,
@@ -415,7 +421,7 @@ function HistoryRow({
                 Restore data
               </DropdownMenuItem>
               <DropdownMenuItem
-                disabled={restoreBlockedReason('full', codeAccess) !== null}
+                disabled={restoreBlockedReason('full', codeWhy) !== null}
                 onSelect={() => onRestore('full')}
               >
                 <RotateCcw />

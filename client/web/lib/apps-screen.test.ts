@@ -247,12 +247,26 @@ describe('appCodeErrorText', () => {
 });
 
 describe('History restores (F4 audit L1)', () => {
-  it('dims the code and full restores without the code right; data stays', () => {
-    expect(restoreBlockedReason('code', false)).toBe(APP_CODE_MANAGE_TEXT);
-    expect(restoreBlockedReason('full', false)).toBe(APP_CODE_MANAGE_TEXT);
-    expect(restoreBlockedReason('data', false)).toBeNull();
-    expect(restoreBlockedReason('code', true)).toBeNull();
-    expect(restoreBlockedReason('full', true)).toBeNull();
+  it('dims the code and full restores with the code why; data stays', () => {
+    expect(restoreBlockedReason('code', APP_CODE_MANAGE_TEXT)).toBe(APP_CODE_MANAGE_TEXT);
+    expect(restoreBlockedReason('full', APP_CODE_MANAGE_TEXT)).toBe(APP_CODE_MANAGE_TEXT);
+    expect(restoreBlockedReason('data', APP_CODE_MANAGE_TEXT)).toBeNull();
+    expect(restoreBlockedReason('code', null)).toBeNull();
+    expect(restoreBlockedReason('full', null)).toBeNull();
+    expect(restoreBlockedReason('data', null)).toBeNull();
+  });
+
+  it("on a snapshot copy the dimmed restores say the copy's note, never the Moderator one", () => {
+    // The History tab takes its why from appCodeWhy, as the Code tab does.
+    const copy = { readOnly: true, snapshotOf: 'a0', mayEdit: false, mayManage: false };
+    const why = appCodeWhy(copy);
+    expect(restoreBlockedReason('code', why)).toBe(SNAPSHOT_COPY_NOTE);
+    expect(restoreBlockedReason('full', why)).toBe(SNAPSHOT_COPY_NOTE);
+    expect(restoreBlockedReason('data', why)).toBeNull();
+    // A member who edits but does not manage still reads the Moderator one.
+    const member = appCodeWhy({ mayEdit: true, mayManage: false });
+    expect(restoreBlockedReason('code', member)).toBe(APP_CODE_MANAGE_TEXT);
+    expect(restoreBlockedReason('full', member)).toBe(APP_CODE_MANAGE_TEXT);
   });
 
   it("says a code restore's workspace refusal in plain words, a data one in the brain's", () => {
@@ -266,5 +280,23 @@ describe('History restores (F4 audit L1)', () => {
     expect(restoreErrorText(e, 'data')).toBe('You cannot change this item in your workspaces.');
     expect(restoreErrorText('boom', 'code')).toBe('Could not restore.');
     expect(restoreErrorText('boom', 'data')).toBe('Could not restore.');
+  });
+
+  it("on a snapshot copy a code or full restore's refusal says the copy's note; data keeps the brain's", () => {
+    const e = new ApiError('You cannot change this item in your workspaces.', 403, {
+      error: 'forbidden',
+      reason: 'item-workspace',
+      code: 'forbidden',
+      message: 'You cannot change this item in your workspaces.',
+    });
+    expect(restoreErrorText(e, 'code', { copy: true })).toBe(SNAPSHOT_COPY_NOTE);
+    expect(restoreErrorText(e, 'full', { copy: true })).toBe(SNAPSHOT_COPY_NOTE);
+    expect(restoreErrorText(e, 'data', { copy: true })).toBe(
+      'You cannot change this item in your workspaces.',
+    );
+    expect(restoreErrorText(e, 'code', { copy: false })).toBe(APP_CODE_MANAGE_TEXT);
+    // Anything else on a copy keeps the brain's words, else the fallback.
+    expect(restoreErrorText(new ApiError('Gone', 404), 'full', { copy: true })).toBe('Gone');
+    expect(restoreErrorText('boom', 'code', { copy: true })).toBe('Could not restore.');
   });
 });

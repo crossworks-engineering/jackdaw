@@ -676,7 +676,8 @@ function AppDetailView({ app }: { app: AppDetail }) {
             appTitle={app.title}
             hasDraft={app.hasDraft}
             dirty={dirty}
-            codeAccess={codeAccess}
+            codeWhy={codeWhy}
+            copy={isCopy}
             onRestored={(res) => {
               // Code came back (the draft or live): take the server's files.
               // A data-only restore leaves the code alone, unsaved edits

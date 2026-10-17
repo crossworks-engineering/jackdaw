@@ -148,17 +148,24 @@ export function appCodeErrorText(
 }
 
 /** Why a History restore is off (F4 audit L1): a code or full restore
- *  writes the draft, so it needs canChangeAppCode; a data restore does not
- *  touch the code and stays open (the brain decides it). Null when open. */
-export function restoreBlockedReason(mode: AppRestoreMode, codeAccess: boolean): string | null {
-  return mode !== 'data' && !codeAccess ? APP_CODE_MANAGE_TEXT : null;
+ *  writes the draft, so it is off whenever the code controls are, with the
+ *  same words (`codeWhy`, from appCodeWhy: the copy's note on a snapshot
+ *  copy, else the Moderator sentence); a data restore does not touch the
+ *  code and stays open (the brain decides it). Null when open. */
+export function restoreBlockedReason(mode: AppRestoreMode, codeWhy: string | null): string | null {
+  return mode !== 'data' ? codeWhy : null;
 }
 
 /** What a failed History restore says: a code or full restore's workspace
- *  refusal in plain words (appCodeErrorText); a data restore keeps the
- *  brain's own words, as a Moderator sentence about code would be wrong. */
-export function restoreErrorText(err: unknown, mode: AppRestoreMode): string {
+ *  refusal in plain words (appCodeErrorText, the copy's note on a snapshot
+ *  copy); a data restore keeps the brain's own words, as a Moderator
+ *  sentence about code would be wrong. */
+export function restoreErrorText(
+  err: unknown,
+  mode: AppRestoreMode,
+  { copy = false }: { copy?: boolean } = {},
+): string {
   const fallback = 'Could not restore.';
-  if (mode !== 'data') return appCodeErrorText(err, fallback);
+  if (mode !== 'data') return appCodeErrorText(err, fallback, { copy });
   return err instanceof Error && err.message ? err.message : fallback;
 }
